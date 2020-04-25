@@ -1,0 +1,41 @@
+version: 1
+filters:
+  mlflow_filter:
+    (): ext://utils.helpers.LoggingFilter
+formatters:
+  simple:
+    format: '%(asctime)s:%(name)s:%(levelname)s:%(message)s'
+    datefmt: '%Y-%m-%d %H:%M:%S'
+  simplest:
+    format: '%(message)s'
+handlers:
+  console:
+    class: logging.StreamHandler
+    level: INFO
+    formatter: simplest
+    stream: ext://sys.stdout
+  file:
+    class: logging.FileHandler
+    level: DEBUG
+    formatter: simple
+    filename: ./file.log
+    mode: a
+    filters: [mlflow_filter]
+
+loggers:
+  AbstractDataset:
+    level: INFO
+    handlers: [console, file]
+    propagate: no
+  LIDCNodulesDataset:
+    level: INFO
+    handlers: [console, file]
+    propagate: no
+  lightning_boilerplates.crls:
+    level: INFO
+    handlers: [console, file]
+    propagate: no
+
+root:
+  level: DEBUG
+  handlers: [console, file]

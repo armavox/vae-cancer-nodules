@@ -1,0 +1,32 @@
+metaconf:
+  ngpus: 2
+  dl_workers: 8
+  experiment_name: "RLS"
+  ws_path: /data/ssd2/rls-med-ws/  # Path to workspace where to save lightinig logs and other artifacts
+  random_seed: 42
+
+hyperparams:
+  batch_size: 16
+  lr: 0.0001
+  lr_shed_rate: 0.99
+  alpha: 0.9
+  b1: 0.5
+  b2: 0.999
+  max_epochs: 1000
+  num_T: 20
+  optimizer_max_grad_norm: 10
+  levelset_init: checkerboard
+
+dataloaders:
+  train:
+    tensor_dataset_name: "TensorDataset64"
+    params:
+      datapath: "/data/ssd2/ctln-gan-data/LIDC-IDRI"
+      cut_denom: 3
+      cube_voxelsize: 64
+      extract_size_mm: 64.0
+      nodule_diameter_interval: [5.0, 30.0]
+      masked: false
+      mask_dilation_iters: 18
+      ct_clip_range: [-1000, 600]
+      mapping_range: [-1.0, 1.0]

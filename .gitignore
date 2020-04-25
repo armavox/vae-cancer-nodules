@@ -1,0 +1,15 @@
+.idea
+.vscode
+__pycache__
+.ipynb_checkpoints
+.DS_Store
+*.pyc
+mlruns
+lightning_logs
+Untitled.ipynb
+notebooks
+
+.*
+!.pre-commit-config.yaml
+!.gitignore
+!.flake8
