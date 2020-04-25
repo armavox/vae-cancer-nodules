@@ -147,9 +147,9 @@ class VAEExperiment(LightningModule):
         self.generic_dataset = LIDCNodulesDataset(**self.dataset_params.params)
         log.info(f"DATASET SIZE: {len(self.generic_dataset)}")
 
-        tensor_dataset_path = self.prepare_tensor_dataset()
+        self.tensor_dataset_path = self.prepare_tensor_dataset()
         self.dataset = DatasetFolder(
-            tensor_dataset_path, torch.load, ("pt"), transform=self.data_transform
+            self.tensor_dataset_path, torch.load, ("pt"), transform=self.data_transform
         )
         self.dataset.norm = self.generic_dataset.norm
 
@@ -224,15 +224,16 @@ class VAEExperiment(LightningModule):
         return grid
 
     def log_embeddings(self):
+        dataset = DatasetFolder(self.tensor_dataset_path, torch.load, ("pt"))
         embeds, labels, imgs = [], [], []
-        for sample in DataLoader(self.dataset, batch_size=64):
+        for sample in DataLoader(dataset, batch_size=64):
             img, label = sample[0]["nodule"], sample[0]["texture"]
             # img = img[:, :, img.size(2) // 2, :, :]
             img, label = img.to(self.curr_device), label.to(self.curr_device)
 
             embeds.append(self.model.embed(img, labels=label))
             labels.append(label)
-            imgs.append(img)
+            imgs.append(self.generic_dataset.norm.denorm(img))
 
         embeds = torch.cat(embeds, dim=0)
         labels = torch.cat(labels, dim=0).tolist()
