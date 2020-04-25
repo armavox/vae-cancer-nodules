@@ -6,6 +6,7 @@ from tqdm import tqdm
 from typing import TypeVar
 
 import torch
+import torch.nn.functional as F
 import torchvision as tv
 from torch.utils.data import DataLoader, SubsetRandomSampler, Subset
 from torchvision.datasets import DatasetFolder
@@ -37,6 +38,7 @@ class VAEExperiment(LightningModule):
     def training_step(self, batch, batch_idx, optimizer_idx=0):
         real_img, labels = batch[0]["nodule"], batch[0]["texture"]
         real_img = real_img[:, :, real_img.size(2) // 2, :, :]
+        labels = F.one_hot(labels - 1, num_classes=5)
         self.curr_device = real_img.device
 
         results = self.forward(real_img, labels=labels)
@@ -69,6 +71,7 @@ class VAEExperiment(LightningModule):
     def validation_step(self, batch, batch_idx, optimizer_idx=0):
         real_img, labels = batch[0]["nodule"], batch[0]["texture"]
         real_img = real_img[:, :, real_img.size(2) // 2, :, :]
+        labels = F.one_hot(labels - 1, num_classes=5)
         self.curr_device = real_img.device
 
         results = self.forward(real_img, labels=labels)
@@ -94,8 +97,9 @@ class VAEExperiment(LightningModule):
         batch = next(iter(self.sample_dl))
         test_input, test_label = batch[0]["nodule"], batch[0]["texture"]
         test_input = test_input[:, :, test_input.size(2) // 2, :, :]
-        test_input = test_input.to(self.curr_device)
-        test_label = test_label.to(self.curr_device)
+        test_label = F.one_hot(test_label - 1, num_classes=5)
+        test_input, test_label = test_input.to(self.curr_device), test_label.to(self.curr_device)
+
         recons = self.model.generate(test_input, labels=test_label)
         grid = self.make_grid(recons)
         self.logger.experiment.add_image(f"reconstructed", grid, self.global_step)
@@ -212,8 +216,9 @@ class VAEExperiment(LightningModule):
         for sample in DataLoader(self.dataset, batch_size=64):
             img, label = sample[0]["nodule"], sample[0]["texture"]
             img = img[:, :, img.size(2) // 2, :, :].to(self.curr_device)
+            oh_label = F.one_hot(label - 1, num_classes=5).to(self.curr_device)
 
-            embeds.append(self.model.embed(img))
+            embeds.append(self.model.embed(img, labels=oh_label))
             labels.append(label)
             imgs.append(img)
 
