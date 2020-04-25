@@ -48,10 +48,22 @@ class VAEExperiment(LightningModule):
         )
 
         output = {
+            "real_img": real_img,
             "loss": train_loss_dict["loss"],
-            "progress_bar": train_loss_dict,
-            "log": train_loss_dict,
+            # "progress_bar": train_loss_dict,
+            "log": {
+                "reconstruction_loss": train_loss_dict["Reconstruction_Loss"],
+                "KLD": train_loss_dict["KLD"],
+            },
         }
+        return output
+
+    def training_step_end(self, output):
+        if self.global_step % 20 == 0:
+            imgs = output["real_img"]
+            grid = self.__prepare_grid(imgs)
+            self.logger.experiment.add_image(f"input_images", grid, self.global_step)
+        del output["real_img"]
         return output
 
     def validation_step(self, batch, batch_idx, optimizer_idx=0):
@@ -71,10 +83,11 @@ class VAEExperiment(LightningModule):
     def validation_epoch_end(self, outputs):
         avg_loss = torch.stack([x["loss"] for x in outputs]).mean()
         tensorboard_logs = {"avg_val_loss": avg_loss}
-        self.sample_images()
+        self.__sample_images()
+        self.__log_embeddings()
         return {"val_loss": avg_loss, "log": tensorboard_logs}
 
-    def sample_images(self):
+    def __sample_images(self):
         # Get sample reconstruction image
         batch = next(iter(self.sample_dl))
         test_input, test_label = batch[0]["nodule"], batch[0]["texture"]
@@ -90,7 +103,7 @@ class VAEExperiment(LightningModule):
             grid = self.__prepare_grid(samples)
             self.logger.experiment.add_image(f"sampled", grid, self.global_step)
             del samples
-        del test_input, recons, grid  # , samples
+        del test_input, recons, grid
 
     def configure_optimizers(self):
 
@@ -147,7 +160,7 @@ class VAEExperiment(LightningModule):
             batch_size=self.hparams.batch_size,
             num_workers=self.metaconf["dl_workers"],
         )
-        self.num_train_imgs = len(self.dataset)
+        self.num_train_imgs = len(self.train_sampler)
         return dl
 
     def val_dataloader(self):
@@ -157,7 +170,7 @@ class VAEExperiment(LightningModule):
             batch_size=self.hparams.batch_size,
             num_workers=self.metaconf["dl_workers"],
         )
-        self.num_val_imgs = len(self.sample_dl)
+        self.num_val_imgs = len(self.val_sampler)
         return self.sample_dl
 
     def __prepare_tensor_dataset(self):
@@ -191,6 +204,21 @@ class VAEExperiment(LightningModule):
             ),
         )
         return grid
+
+    def __log_embeddings(self):
+        embeds, labels, imgs = [], [], []
+        for sample in DataLoader(self.dataset, batch_size=64):
+            img, label = sample[0]["nodule"], sample[0]["texture"]
+            img = img[:, :, img.size(2) // 2, :, :].to(self.curr_device)
+
+            embeds.append(self.model.embed(img))
+            labels.append(label)
+            imgs.append(img)
+
+        embeds = torch.cat(embeds, dim=0)
+        labels = torch.cat(labels, dim=0)
+        imgs = torch.cat(imgs, dim=0)
+        self.logger.experiment.add_embedding(embeds, metadata=labels, label_img=imgs)
 
     # def data_transforms(self):
 

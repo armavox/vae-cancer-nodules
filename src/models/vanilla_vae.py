@@ -19,7 +19,9 @@ Tensor = TypeVar("torch.tensor")
 
 
 class VanillaVAE(BaseVAE):
-    def __init__(self, in_channels: int, latent_dim: int, hidden_dims: List = None, **kwargs) -> None:
+    def __init__(
+        self, in_channels: int, out_channels: int, latent_dim: int, hidden_dims: List = None, **kwargs
+    ) -> None:
         super(VanillaVAE, self).__init__()
 
         self.latent_dim = latent_dim
@@ -74,7 +76,7 @@ class VanillaVAE(BaseVAE):
             ),
             nn.BatchNorm2d(hidden_dims[-1]),
             nn.LeakyReLU(),
-            nn.Conv2d(hidden_dims[-1], out_channels=3, kernel_size=3, padding=1),
+            nn.Conv2d(hidden_dims[-1], out_channels=out_channels, kernel_size=3, padding=1),
             nn.Tanh(),
         )
 
@@ -168,3 +170,8 @@ class VanillaVAE(BaseVAE):
         """
 
         return self.forward(x)[0]
+
+    def embed(self, input: Tensor, **kwargs) -> List[Tensor]:
+        mu, log_var = self.encode(input)
+        z = self.reparameterize(mu, log_var)
+        return z

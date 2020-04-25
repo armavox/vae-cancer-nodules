@@ -22,6 +22,9 @@ class BaseVAE(nn.Module):
     def generate(self, x: Tensor, **kwargs) -> Tensor:
         raise NotImplementedError
 
+    def embed(self, x: Tensor, **kwargs) -> Tensor:
+        raise NotImplementedError
+
     @abstractmethod
     def forward(self, *inputs: Tensor) -> Tensor:
         pass
