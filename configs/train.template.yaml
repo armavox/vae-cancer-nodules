@@ -3,31 +3,32 @@ metaconf:
   ngpus: 1
   dl_workers: 4
   random_seed: 42
-  max_epochs: 50
+  max_epochs: 500
   ws_path: /data/ssd2/vae-cancer-nodules-ws/  # Path to workspace where to save lightinig logs and other artifacts
 
 hyperparams:
-  batch_size: 144
+  batch_size: 64
   lr: 0.005
-  weight_decay: 0.0
+  weight_decay: 0.5
   scheduler_gamma: 0.95
 
 model_params:
-  vae_model: "VanillaVAE"
+  vae_model: "ConditionalVAE"
   in_channels: 1
   out_channels: 1
   num_classes: 5
-  latent_dim: 128
+  latent_dim: 64
+  hidden_dims: [32, 64, 128, 256, 512, 1024]
 
 dataloaders:
   train:
-    tensor_dataset_name: "TensorDataset64"
+    tensor_dataset_name: "TensorDataset64_30"
     params:
       datapath: "/data/ssd2/ctln-gan-data/LIDC-IDRI"
       cut_denom: 3
       cube_voxelsize: 64
       extract_size_mm: 64.0
-      nodule_diameter_interval: [3.0, 30.0]
+      nodule_diameter_interval: [15.0, 30.0]
       masked: false
       mask_dilation_iters: 18
       ct_clip_range: [-1000, 600]
