@@ -8,6 +8,7 @@ from typing import TypeVar
 import torch
 import torchvision as tv
 from torch.utils.data import DataLoader, SubsetRandomSampler, Subset
+from torchvision import transforms
 from torchvision.datasets import DatasetFolder
 from pytorch_lightning.core import LightningModule
 
@@ -36,7 +37,7 @@ class VAEExperiment(LightningModule):
 
     def training_step(self, batch, batch_idx, optimizer_idx=0):
         real_img, labels = batch[0]["nodule"], batch[0]["texture"]
-        real_img = real_img[:, :, real_img.size(2) // 2, :, :]
+        # real_img = real_img[:, :, real_img.size(2) // 2, :, :]
         self.curr_device = real_img.device
 
         results = self.forward(real_img, labels=labels)
@@ -68,7 +69,7 @@ class VAEExperiment(LightningModule):
 
     def validation_step(self, batch, batch_idx, optimizer_idx=0):
         real_img, labels = batch[0]["nodule"], batch[0]["texture"]
-        real_img = real_img[:, :, real_img.size(2) // 2, :, :]
+        # real_img = real_img[:, :, real_img.size(2) // 2, :, :]
         self.curr_device = real_img.device
 
         results = self.forward(real_img, labels=labels)
@@ -93,7 +94,7 @@ class VAEExperiment(LightningModule):
         # Get sample reconstruction image
         batch = next(iter(self.sample_dl))
         test_input, test_label = batch[0]["nodule"], batch[0]["texture"]
-        test_input = test_input[:, :, test_input.size(2) // 2, :, :]
+        # test_input = test_input[:, :, test_input.size(2) // 2, :, :]
         test_input, test_label = test_input.to(self.curr_device), test_label.to(self.curr_device)
 
         recons = self.model.generate(test_input, labels=test_label)
@@ -146,8 +147,9 @@ class VAEExperiment(LightningModule):
         log.info(f"DATASET SIZE: {len(self.generic_dataset)}")
 
         tensor_dataset_path = self.prepare_tensor_dataset()
-
-        self.dataset = DatasetFolder(tensor_dataset_path, torch.load, ("pt"))
+        self.dataset = DatasetFolder(
+            tensor_dataset_path, torch.load, ("pt"), transform=self.data_transform
+        )
         self.dataset.norm = self.generic_dataset.norm
 
         train_inds, val_inds, test_inds = H.train_val_holdout_split(self.dataset)
@@ -194,6 +196,21 @@ class VAEExperiment(LightningModule):
                 torch.save(save_nodules, f_path)
         return tensor_dataset_path
 
+    def data_transform(self, input):
+        image, label = input["nodule"], input["texture"]
+        image = image[:, image.size(2) // 2, :, :]
+        transform = transforms.Compose(
+            [
+                transforms.ToPILImage(),
+                transforms.RandomChoice(
+                    [transforms.RandomHorizontalFlip(), transforms.RandomVerticalFlip()]
+                ),
+                transforms.ToTensor(),
+                transforms.RandomErasing(value=-1.0),
+            ]
+        )
+        return {"nodule": transform(image), "texture": label}
+
     def make_grid(self, samples):
         imgs_in_hu = self.dataset.norm.denorm(samples)
         grid = tv.utils.make_grid(
@@ -211,8 +228,8 @@ class VAEExperiment(LightningModule):
         embeds, labels, imgs = [], [], []
         for sample in DataLoader(self.dataset, batch_size=64):
             img, label = sample[0]["nodule"], sample[0]["texture"]
-            img = img[:, :, img.size(2) // 2, :, :].to(self.curr_device)
-            label = label.to(self.curr_device)
+            img = img[:, :, img.size(2) // 2, :, :]
+            img, label = img.to(self.curr_device), label.to(self.curr_device)
 
             embeds.append(self.model.embed(img, labels=label))
             labels.append(label)
