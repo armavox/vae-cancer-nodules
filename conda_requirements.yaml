@@ -1,4 +1,4 @@
-name: rls-med
+name: vae-cancer-nodules
 channels:
   - defaults
   - pytorch
@@ -8,10 +8,11 @@ dependencies:
   - numpy=1.18.1
   - matplotlib=3.1.3
   - tqdm=4.44.1
+  - pip
   - pip:
     - black==19.10b0
     - flake8==3.7.9
-    - pre-commit==1.22.0
-    - pylidc==0.2.1
+    - pre-commit
+    - pylidc==0.2.2
     - pytorch-lightning==0.7.3
     - raster-geometry==0.1.4.1
