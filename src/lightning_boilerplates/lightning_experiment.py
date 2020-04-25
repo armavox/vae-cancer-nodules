@@ -213,12 +213,12 @@ class VAEExperiment(LightningModule):
         test_input, test_label = test_input.to(self.curr_device), test_label.to(self.curr_device)
 
         recons = self.model.generate(test_input, labels=test_label)
-        grid = self.make_grid(recons)
+        grid = self.__make_grid(recons)
         self.logger.experiment.add_image(f"reconstructed", grid, self.global_step)
 
         if "sample" in dir(self.model):
             samples = self.model.sample(test_input.size(0), self.curr_device, labels=test_label)
-            grid = self.make_grid(samples)
+            grid = self.__make_grid(samples)
             self.logger.experiment.add_image(f"sampled", grid, self.global_step)
             del samples
         del test_input, recons, grid
