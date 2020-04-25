@@ -1,3 +1,14 @@
+# Code provided by:
+# @misc{Subramanian2020,
+#   author = {Subramanian, A.K},
+#   title = {PyTorch-VAE},
+#   year = {2020},
+#   publisher = {GitHub},
+#   journal = {GitHub repository},
+#   howpublished = {\url{https://github.com/AntixK/PyTorch-VAE}}
+# }
+
+
 from torch import nn
 from abc import abstractmethod
 from typing import List, Any, TypeVar
