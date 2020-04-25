@@ -29,11 +29,7 @@ class VAEExperiment(LightningModule):
         self.hparams = Namespace(**config.hyperparams)
         self.dataset_params = Namespace(**config.dataloaders["train"])
 
-        self.hold_graph = False
-        try:
-            self.hold_graph = self.hparams.retain_first_backpass
-        except Exception:
-            pass
+        self.curr_device = None
 
     def forward(self, input: Tensor, **kwargs) -> Tensor:
         return self.model(input, **kwargs)
@@ -43,30 +39,33 @@ class VAEExperiment(LightningModule):
         self.curr_device = real_img.device
 
         results = self.forward(real_img, labels=labels)
-        train_loss = self.model.loss_function(
+        train_loss_dict = self.model.loss_function(
             *results,
-            M_N=self.hparams["batch_size"] / self.num_train_imgs,
+            M_N=self.hparams.batch_size / self.num_train_imgs,
             optimizer_idx=optimizer_idx,
             batch_idx=batch_idx,
         )
 
-        self.logger.experiment.log({key: val.item() for key, val in train_loss.items()})
-
-        return train_loss
+        output = {
+            "loss": train_loss_dict["loss"],
+            "progress_bar": train_loss_dict,
+            "log": train_loss_dict,
+        }
+        return output
 
     def validation_step(self, batch, batch_idx, optimizer_idx=0):
         real_img, labels = batch
         self.curr_device = real_img.device
 
         results = self.forward(real_img, labels=labels)
-        val_loss = self.model.loss_function(
+        val_loss_dict = self.model.loss_function(
             *results,
             M_N=self.hparams["batch_size"] / self.num_val_imgs,
             optimizer_idx=optimizer_idx,
             batch_idx=batch_idx,
         )
 
-        return val_loss
+        return val_loss_dict
 
     def validation_end(self, outputs):
         avg_loss = torch.stack([x["loss"] for x in outputs]).mean()
@@ -76,36 +75,19 @@ class VAEExperiment(LightningModule):
 
     def sample_images(self):
         # Get sample reconstruction image
-        test_input, test_label = next(iter(self.sample_dataloader))
+        test_input, test_label = next(iter(self.sample_dl))
         test_input = test_input.to(self.curr_device)
         test_label = test_label.to(self.curr_device)
         recons = self.model.generate(test_input, labels=test_label)
-        tv.utils.save_image(
-            recons.data,
-            f"{self.logger.save_dir}{self.logger.name}/version_{self.logger.version}/"
-            f"recons_{self.logger.name}_{self.current_epoch}.png",
-            normalize=True,
-            nrow=12,
-        )
+        grid = self.__prepare_grid(recons)
+        self.logger.experiment.add_image(f"reconstructed", grid, self.global_step)
 
-        # vutils.save_image(test_input.data,
-        #                   f"{self.logger.save_dir}{self.logger.name}/version_{self.logger.version}/"
-        #                   f"real_img_{self.logger.name}_{self.current_epoch}.png",
-        #                   normalize=True,
-        #                   nrow=12)
-
-        try:
+        if "sample" in dir(self.model):
             samples = self.model.sample(144, self.curr_device, labels=test_label)
-            tv.utils.save_image(
-                samples.cpu().data,
-                f"{self.logger.save_dir}{self.logger.name}/version_{self.logger.version}/"
-                f"{self.logger.name}_{self.current_epoch}.png",
-                normalize=True,
-                nrow=12,
-            )
-        except Exception:
-            pass
-        del test_input, recons  # , samples
+            grid = self.__prepare_grid(samples)
+            self.logger.experiment.add_image(f"reconstructed", grid, self.global_step)
+            del samples
+        del test_input, recons, grid  # , samples
 
     def configure_optimizers(self):
 
@@ -173,14 +155,14 @@ class VAEExperiment(LightningModule):
         return dl
 
     def val_dataloader(self):
-        dl = DataLoader(
+        self.sample_dl = DataLoader(
             self.dataset,
             sampler=self.val_sampler,
             batch_size=self.hparams.batch_size,
             num_workers=self.metaconf["dl_workers"],
         )
-        self.num_val_imgs = len(dl)
-        return dl
+        self.num_val_imgs = len(self.sample_dl)
+        return self.sample_dl
 
     def __prepare_tensor_dataset(self):
         tensor_dataset_path = os.path.join(
@@ -200,6 +182,19 @@ class VAEExperiment(LightningModule):
                 save_nodules = {"nodule": sample["nodule"], "mask": sample["mask"]}
                 torch.save(save_nodules, f_path)
         return tensor_dataset_path
+
+    def __prepare_grid(self, samples):
+        imgs_in_hu = self.dataset.norm.denorm(samples)
+        grid = tv.utils.make_grid(
+            imgs_in_hu,
+            nrow=4,
+            normalize=True,
+            range=(
+                self.dataset_params.params["ct_clip_range"][0],
+                self.dataset_params.params["ct_clip_range"][1],
+            ),
+        )
+        return grid
 
     # def data_transforms(self):
 
