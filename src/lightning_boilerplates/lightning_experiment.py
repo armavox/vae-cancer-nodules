@@ -12,6 +12,7 @@ from torchvision import transforms
 from torchvision.datasets import DatasetFolder
 from pytorch_lightning.core import LightningModule
 
+import data.transforms as T
 import utils.helpers as H
 from data.lidc import LIDCNodulesDataset
 from models import BaseVAE
@@ -201,12 +202,8 @@ class VAEExperiment(LightningModule):
         image = image[:, image.size(2) // 2, :, :]
         transform = transforms.Compose(
             [
-                transforms.ToPILImage(),
-                transforms.RandomChoice(
-                    [transforms.RandomHorizontalFlip(), transforms.RandomVerticalFlip()]
-                ),
-                transforms.ToTensor(),
-                transforms.RandomErasing(value=-1.0),
+                transforms.RandomChoice([T.Rot90(), T.Flip()]),
+                transforms.RandomErasing(value=-1.0, ratio=(0.3, 1.2)),
             ]
         )
         return {"nodule": transform(image), "texture": label}
@@ -228,7 +225,7 @@ class VAEExperiment(LightningModule):
         embeds, labels, imgs = [], [], []
         for sample in DataLoader(self.dataset, batch_size=64):
             img, label = sample[0]["nodule"], sample[0]["texture"]
-            img = img[:, :, img.size(2) // 2, :, :]
+            # img = img[:, :, img.size(2) // 2, :, :]
             img, label = img.to(self.curr_device), label.to(self.curr_device)
 
             embeds.append(self.model.embed(img, labels=label))

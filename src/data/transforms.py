@@ -61,6 +61,36 @@ class Normalization(CustomTransformNumpy):
         return scaled * self.from_span + self.from_min
 
 
+class Rot90:
+    def __init__(self, num_rots=None):
+        if num_rots:
+            self.num_rots = num_rots
+        else:
+            self.num_rots = np.random.randint(10)
+
+    def __call__(self, input):
+        input = input.squeeze()
+        rot = torch.rot90(input, self.num_rots, (0, 1))
+        return rot.unsqueeze(0)
+
+
+class Flip:
+    def __init__(self, flip_type: str = None):
+        if flip_type:
+            self.type = flip_type
+        else:
+            self.type = np.random.choice(["h", "v"])
+
+    def __call__(self, input):
+        if self.type == "h":
+            flipped = torch.flip(input, (0, 1))
+        elif self.type == "v":
+            flipped = torch.flip(input, (0, 2))
+        else:
+            raise NotImplementedError
+        return flipped
+
+
 def heaviside(mask, eps=1e-5):
     return 1 / 2 * (1 + (2 / np.pi) * (torch.atan(mask / eps)))
 
