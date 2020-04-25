@@ -103,7 +103,7 @@ class VAEExperiment(LightningModule):
         self.logger.experiment.add_image(f"reconstructed", grid, self.global_step)
 
         if "sample" in dir(self.model):
-            samples = self.model.sample(64, self.curr_device, labels=test_label)
+            samples = self.model.sample(test_input.size(0), self.curr_device, labels=test_label)
             grid = self.make_grid(samples)
             self.logger.experiment.add_image(f"sampled", grid, self.global_step)
             del samples
@@ -153,7 +153,9 @@ class VAEExperiment(LightningModule):
         )
         self.dataset.norm = self.generic_dataset.norm
 
-        train_inds, val_inds, test_inds = H.train_val_holdout_split(self.dataset)
+        train_inds, val_inds, test_inds = H.train_val_holdout_split(
+            self.dataset, ratios=[0.89, 0.1, 0.01]
+        )
         self.train_sampler = SubsetRandomSampler(train_inds)
         self.val_sampler = SubsetRandomSampler(val_inds)
         self.test_subset = Subset(self.dataset, test_inds)
