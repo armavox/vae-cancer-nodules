@@ -35,7 +35,8 @@ class VAEExperiment(LightningModule):
         return self.model(input, **kwargs)
 
     def training_step(self, batch, batch_idx, optimizer_idx=0):
-        real_img, labels = batch
+        real_img, labels = batch[0]["nodule"], batch[0]["texture"]
+        real_img = real_img[:, :, real_img.size(2) // 2, :, :]
         self.curr_device = real_img.device
 
         results = self.forward(real_img, labels=labels)
@@ -54,20 +55,20 @@ class VAEExperiment(LightningModule):
         return output
 
     def validation_step(self, batch, batch_idx, optimizer_idx=0):
-        real_img, labels = batch
+        real_img, labels = batch[0]["nodule"], batch[0]["texture"]
+        real_img = real_img[:, :, real_img.size(2) // 2, :, :]
         self.curr_device = real_img.device
 
         results = self.forward(real_img, labels=labels)
         val_loss_dict = self.model.loss_function(
             *results,
-            M_N=self.hparams["batch_size"] / self.num_val_imgs,
+            M_N=self.hparams.batch_size / self.num_val_imgs,
             optimizer_idx=optimizer_idx,
             batch_idx=batch_idx,
         )
-
         return val_loss_dict
 
-    def validation_end(self, outputs):
+    def validation_epoch_end(self, outputs):
         avg_loss = torch.stack([x["loss"] for x in outputs]).mean()
         tensorboard_logs = {"avg_val_loss": avg_loss}
         self.sample_images()
@@ -75,7 +76,9 @@ class VAEExperiment(LightningModule):
 
     def sample_images(self):
         # Get sample reconstruction image
-        test_input, test_label = next(iter(self.sample_dl))
+        batch = next(iter(self.sample_dl))
+        test_input, test_label = batch[0]["nodule"], batch[0]["texture"]
+        test_input = test_input[:, :, test_input.size(2) // 2, :, :]
         test_input = test_input.to(self.curr_device)
         test_label = test_label.to(self.curr_device)
         recons = self.model.generate(test_input, labels=test_label)
@@ -83,9 +86,9 @@ class VAEExperiment(LightningModule):
         self.logger.experiment.add_image(f"reconstructed", grid, self.global_step)
 
         if "sample" in dir(self.model):
-            samples = self.model.sample(144, self.curr_device, labels=test_label)
+            samples = self.model.sample(64, self.curr_device, labels=test_label)
             grid = self.__prepare_grid(samples)
-            self.logger.experiment.add_image(f"reconstructed", grid, self.global_step)
+            self.logger.experiment.add_image(f"sampled", grid, self.global_step)
             del samples
         del test_input, recons, grid  # , samples
 
@@ -95,38 +98,31 @@ class VAEExperiment(LightningModule):
         scheds = []
 
         optimizer = torch.optim.Adam(
-            self.model.parameters(), lr=self.hparams["LR"], weight_decay=self.hparams["weight_decay"]
+            self.model.parameters(), lr=self.hparams.lr, weight_decay=self.hparams.weight_decay
         )
         optims.append(optimizer)
         # Check if more than 1 optimizer is required (Used for adversarial training)
-        try:
-            if self.hparams["LR_2"] is not None:
-                optimizer2 = torch.optim.Adam(
-                    getattr(self.model, self.hparams["submodel"]).parameters(), lr=self.hparams["LR_2"]
-                )
-                optims.append(optimizer2)
-        except Exception:
-            pass
+        if "lr_2" in dir(self.hparams):
+            optimizer2 = torch.optim.Adam(
+                getattr(self.model, self.hparams["submodel"]).parameters(), lr=self.hparams.lr_2
+            )
+            optims.append(optimizer2)
 
-        try:
-            if self.hparams["scheduler_gamma"] is not None:
-                scheduler = torch.optim.lr_scheduler.ExponentialLR(
-                    optims[0], gamma=self.hparams["scheduler_gamma"]
-                )
-                scheds.append(scheduler)
+        if "scheduler_gamma" in dir(self.hparams):
+            scheduler = torch.optim.lr_scheduler.ExponentialLR(
+                optims[0], gamma=self.hparams.scheduler_gamma
+            )
+            scheds.append(scheduler)
 
-                # Check if another scheduler is required for the second optimizer
-                try:
-                    if self.hparams["scheduler_gamma_2"] is not None:
-                        scheduler2 = torch.optim.lr_scheduler.ExponentialLR(
-                            optims[1], gamma=self.hparams["scheduler_gamma_2"]
-                        )
-                        scheds.append(scheduler2)
-                except Exception:
-                    pass
-                return optims, scheds
-        except Exception:
-            return optims
+            # Check if another scheduler is required for the second optimizer
+            if "scheduler_gamma_2" in dir(self.hparams):
+                scheduler2 = torch.optim.lr_scheduler.ExponentialLR(
+                    optims[1], gamma=self.hparams.scheduler_gamma_2
+                )
+                scheds.append(scheduler2)
+            return optims, scheds
+
+        return optims
 
     def prepare_data(self):
         """Prepare and save dataset as TensorDataset to improve training speed.
@@ -176,10 +172,10 @@ class VAEExperiment(LightningModule):
             H.makedirs(tensor_dataset_path)
             _tqdm_kwargs = {"desc": "Preparing TensorDataset", "total": len(self.generic_dataset)}
             for i, sample in tqdm(enumerate(self.generic_dataset), **_tqdm_kwargs):
-                f_folder_path = os.path.join(tensor_dataset_path, "0")
+                f_folder_path = os.path.join(tensor_dataset_path, f"{sample['texture']}")
                 H.makedirs(f_folder_path)
-                f_path = os.path.join(tensor_dataset_path, "0", f"nodule_{i}.pt")
-                save_nodules = {"nodule": sample["nodule"], "mask": sample["mask"]}
+                f_path = os.path.join(f_folder_path, f"nodule_{i}.pt")
+                save_nodules = {"nodule": sample["nodule"], "texture": sample["texture"]}
                 torch.save(save_nodules, f_path)
         return tensor_dataset_path
 
@@ -187,7 +183,7 @@ class VAEExperiment(LightningModule):
         imgs_in_hu = self.dataset.norm.denorm(samples)
         grid = tv.utils.make_grid(
             imgs_in_hu,
-            nrow=4,
+            nrow=8,
             normalize=True,
             range=(
                 self.dataset_params.params["ct_clip_range"][0],
