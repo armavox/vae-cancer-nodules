@@ -61,7 +61,7 @@ class VAEExperiment(LightningModule):
     def training_step_end(self, output):
         if self.global_step % 20 == 0:
             imgs = output["real_img"]
-            grid = self.__prepare_grid(imgs)
+            grid = self.make_grid(imgs)
             self.logger.experiment.add_image(f"input_images", grid, self.global_step)
         del output["real_img"]
         return output
@@ -83,13 +83,13 @@ class VAEExperiment(LightningModule):
     def validation_epoch_end(self, outputs):
         avg_loss = torch.stack([x["loss"] for x in outputs]).mean()
         tensorboard_logs = {"avg_val_loss": avg_loss}
-        self.__sample_images()
+        self.sample_images()
         return {"val_loss": avg_loss, "log": tensorboard_logs}
 
     def on_epoch_end(self):
-        self.__log_embeddings()
+        self.log_embeddings()
 
-    def __sample_images(self):
+    def sample_images(self):
         # Get sample reconstruction image
         batch = next(iter(self.sample_dl))
         test_input, test_label = batch[0]["nodule"], batch[0]["texture"]
@@ -97,12 +97,12 @@ class VAEExperiment(LightningModule):
         test_input = test_input.to(self.curr_device)
         test_label = test_label.to(self.curr_device)
         recons = self.model.generate(test_input, labels=test_label)
-        grid = self.__prepare_grid(recons)
+        grid = self.make_grid(recons)
         self.logger.experiment.add_image(f"reconstructed", grid, self.global_step)
 
         if "sample" in dir(self.model):
             samples = self.model.sample(64, self.curr_device, labels=test_label)
-            grid = self.__prepare_grid(samples)
+            grid = self.make_grid(samples)
             self.logger.experiment.add_image(f"sampled", grid, self.global_step)
             del samples
         del test_input, recons, grid
@@ -145,7 +145,7 @@ class VAEExperiment(LightningModule):
         self.generic_dataset = LIDCNodulesDataset(**self.dataset_params.params)
         log.info(f"DATASET SIZE: {len(self.generic_dataset)}")
 
-        tensor_dataset_path = self.__prepare_tensor_dataset()
+        tensor_dataset_path = self.prepare_tensor_dataset()
 
         self.dataset = DatasetFolder(tensor_dataset_path, torch.load, ("pt"))
         self.dataset.norm = self.generic_dataset.norm
@@ -175,7 +175,7 @@ class VAEExperiment(LightningModule):
         self.num_val_imgs = len(self.val_sampler)
         return self.sample_dl
 
-    def __prepare_tensor_dataset(self):
+    def prepare_tensor_dataset(self):
         tensor_dataset_path = os.path.join(
             self.metaconf["ws_path"], "tensor_datasets", self.dataset_params.tensor_dataset_name
         )
@@ -194,7 +194,7 @@ class VAEExperiment(LightningModule):
                 torch.save(save_nodules, f_path)
         return tensor_dataset_path
 
-    def __prepare_grid(self, samples):
+    def make_grid(self, samples):
         imgs_in_hu = self.dataset.norm.denorm(samples)
         grid = tv.utils.make_grid(
             imgs_in_hu,
@@ -207,7 +207,7 @@ class VAEExperiment(LightningModule):
         )
         return grid
 
-    def __log_embeddings(self):
+    def log_embeddings(self):
         embeds, labels, imgs = [], [], []
         for sample in DataLoader(self.dataset, batch_size=64):
             img, label = sample[0]["nodule"], sample[0]["texture"]
@@ -295,7 +295,7 @@ class VAEExperiment(LightningModule):
 #         self.generic_dataset = LIDCNodulesDataset(**self.dataset_params.params)
 #         log.info(f"DATASET SIZE: {len(self.generic_dataset)}")
 
-#         tensor_dataset_path = self.__prepare_tensor_dataset()
+#         tensor_dataset_path = self.prepare_tensor_dataset()
 
 #         self.dataset = DatasetFolder(tensor_dataset_path, torch.load, ("pt"))
 #         self.dataset.norm = self.generic_dataset.norm
@@ -412,7 +412,7 @@ class VAEExperiment(LightningModule):
 #         # grid = torchvision.utils.make_grid(sample_imgs_in_hu, 4, normalize=True)
 #         # self.logger.experiment.add_image(f"generated_images", grid, self.current_epoch)
 
-#     def __prepare_tensor_dataset(self):
+#     def prepare_tensor_dataset(self):
 #         tensor_dataset_path = os.path.join(
 #             self.metaconf["ws_path"], "tensor_datasets", self.dataset_params.tensor_dataset_name
 #         )
