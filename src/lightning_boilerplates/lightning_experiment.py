@@ -228,12 +228,16 @@ class VAEExperiment(LightningModule):
         embeds, labels, imgs = [], [], []
         for sample in DataLoader(dataset, batch_size=64):
             img, label = sample[0]["nodule"], sample[0]["texture"]
-            # img = img[:, :, img.size(2) // 2, :, :]
+            img = img[:, :, img.size(2) // 2, :, :]
             img, label = img.to(self.curr_device), label.to(self.curr_device)
 
             embeds.append(self.model.embed(img, labels=label))
             labels.append(label)
-            imgs.append(self.generic_dataset.norm.denorm(img))
+
+            min, max = self.dataset_params.params["ct_clip_range"]
+            img_in_hu = self.generic_dataset.norm.denorm(img)
+            img_in_01 = img_in_hu.add(-min).div(max - min + 1e-5)
+            imgs.append(img_in_01)
 
         embeds = torch.cat(embeds, dim=0)
         labels = torch.cat(labels, dim=0).tolist()
