@@ -33,6 +33,7 @@ class ConditionalVAE(BaseVAE):
 
         self.latent_dim = latent_dim
         self.img_size = img_size
+        self.num_classes = num_classes
 
         self.embed_class = nn.Linear(num_classes, img_size * img_size)
         self.embed_data = nn.Conv2d(in_channels, in_channels, kernel_size=1)
@@ -128,7 +129,10 @@ class ConditionalVAE(BaseVAE):
         return eps * std + mu
 
     def forward(self, input: Tensor, **kwargs) -> List[Tensor]:
-        y = kwargs["labels"].float()
+        if kwargs["labels"].dim() == 1:
+            y = F.one_hot(kwargs["labels"] - 1, num_classes=self.num_classes).float()
+        else:
+            y = kwargs["labels"].float()
         embedded_class = self.embed_class(y)
         embedded_class = embedded_class.view(-1, self.img_size, self.img_size).unsqueeze(1)
         embedded_input = self.embed_data(input)
@@ -163,7 +167,11 @@ class ConditionalVAE(BaseVAE):
         :param current_device: (Int) Device to run the model
         :return: (Tensor)
         """
-        y = kwargs["labels"].float()
+        if kwargs["labels"].dim() == 1:
+            y = F.one_hot(kwargs["labels"] - 1, num_classes=self.num_classes).float()
+        else:
+            y = kwargs["labels"].float()
+
         z = torch.randn(num_samples, self.latent_dim)
 
         z = z.to(current_device)
@@ -182,7 +190,10 @@ class ConditionalVAE(BaseVAE):
         return self.forward(x, **kwargs)[0]
 
     def embed(self, input: Tensor, **kwargs) -> List[Tensor]:
-        y = kwargs["labels"].float()
+        if kwargs["labels"].dim() == 1:
+            y = F.one_hot(kwargs["labels"] - 1, num_classes=self.num_classes).float()
+        else:
+            y = kwargs["labels"].float()
         embedded_class = self.embed_class(y)
         embedded_class = embedded_class.view(-1, self.img_size, self.img_size).unsqueeze(1)
         embedded_input = self.embed_data(input)
