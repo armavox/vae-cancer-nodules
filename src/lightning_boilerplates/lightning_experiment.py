@@ -84,8 +84,10 @@ class VAEExperiment(LightningModule):
         avg_loss = torch.stack([x["loss"] for x in outputs]).mean()
         tensorboard_logs = {"avg_val_loss": avg_loss}
         self.__sample_images()
-        self.__log_embeddings()
         return {"val_loss": avg_loss, "log": tensorboard_logs}
+
+    def on_epoch_end(self):
+        self.__log_embeddings()
 
     def __sample_images(self):
         # Get sample reconstruction image
@@ -216,9 +218,11 @@ class VAEExperiment(LightningModule):
             imgs.append(img)
 
         embeds = torch.cat(embeds, dim=0)
-        labels = torch.cat(labels, dim=0)
+        labels = torch.cat(labels, dim=0).tolist()
         imgs = torch.cat(imgs, dim=0)
-        self.logger.experiment.add_embedding(embeds, metadata=labels, label_img=imgs)
+        self.logger.experiment.add_embedding(
+            embeds, metadata=labels, label_img=imgs, global_step=self.global_step
+        )
 
     # def data_transforms(self):
 
