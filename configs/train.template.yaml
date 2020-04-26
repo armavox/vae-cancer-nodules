@@ -9,6 +9,7 @@ metaconf:
 hyperparams:
   batch_size: 64
   lr: 0.005
+  betas: [0.5, 0.999]
   weight_decay: 0.5
   scheduler_gamma: 0.95
 

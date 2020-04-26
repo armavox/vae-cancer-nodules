@@ -43,6 +43,7 @@ class ConditionalVAE(BaseVAE):
             hidden_dims = [32, 64, 128, 256, 512]
 
         in_channels += 1  # To account for the extra label channel
+
         # Build Encoder
         for h_dim in hidden_dims:
             modules.append(
@@ -60,11 +61,9 @@ class ConditionalVAE(BaseVAE):
 
         # Build Decoder
         modules = []
-
         self.decoder_input = nn.Linear(latent_dim + num_classes, hidden_dims[-1])
 
         hidden_dims.reverse()
-
         for i in range(len(hidden_dims) - 1):
             modules.append(
                 nn.Sequential(

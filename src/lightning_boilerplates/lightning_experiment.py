@@ -97,7 +97,10 @@ class VAEExperiment(LightningModule):
         scheds = []
 
         optimizer = torch.optim.Adam(
-            self.model.parameters(), lr=self.hparams.lr, weight_decay=self.hparams.weight_decay
+            self.model.parameters(),
+            lr=self.hparams.lr,
+            weight_decay=self.hparams.weight_decay,
+            betas=self.hparams.betas,
         )
         optims.append(optimizer)
         # Check if more than 1 optimizer is required (Used for adversarial training)
