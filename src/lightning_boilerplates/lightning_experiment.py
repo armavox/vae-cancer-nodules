@@ -50,13 +50,14 @@ class VAEExperiment(LightningModule):
             batch_idx=batch_idx,
         )
 
+        loss_dict_keys = list(train_loss_dict.keys())
         output = {
             "real_img": real_img,
             "loss": train_loss_dict["loss"],
             # "progress_bar": train_loss_dict,
             "log": {
                 "reconstruction_loss": train_loss_dict["Reconstruction_Loss"],
-                "KLD": train_loss_dict["KLD"],
+                loss_dict_keys[2]: train_loss_dict[loss_dict_keys[2]],  # KLD or VQ_loss
             },
         }
         return output
@@ -134,9 +135,7 @@ class VAEExperiment(LightningModule):
         log.info(f"DATASET SIZE: {len(self.generic_dataset)}")
 
         self.tensor_dataset_path = self.__prepare_tensor_dataset()
-        self.aug_transform = transforms.Compose(
-            [T.FlipNodule3D(), T.RotNodule3D()]
-        )
+        self.aug_transform = transforms.Compose([T.FlipNodule3D(), T.RotNodule3D()])
         self.dataset = DatasetFolder(
             self.tensor_dataset_path, torch.load, ("pt"), transform=self.__data_transform
         )
@@ -191,12 +190,12 @@ class VAEExperiment(LightningModule):
     def __data_transform(self, input):
         image, label = input["nodule"], input["texture"]
         if label != 5:
-            plt.imshow(image[0, 32])
-            plt.savefig('123.png')
+            plt.imshow(image[0, 32], cmap="gray")
+            plt.savefig("123.png")
             plt.close()
             image = self.aug_transform(image)
-            plt.imshow(image[0, 32])
-            plt.savefig('1234.png')
+            plt.imshow(image[0, 32], cmap="gray")
+            plt.savefig("1234.png")
             plt.close()
 
         image = image[:, image.size(1) // 2, :, :]
