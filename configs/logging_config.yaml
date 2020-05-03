@@ -31,7 +31,7 @@ loggers:
     level: INFO
     handlers: [console, file]
     propagate: no
-  lightning_boilerplates.crls:
+  lightning_experiment:
     level: INFO
     handlers: [console, file]
     propagate: no

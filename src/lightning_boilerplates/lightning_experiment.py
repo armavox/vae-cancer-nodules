@@ -19,7 +19,7 @@ from data.lidc import LIDCNodulesDataset
 from models import BaseVAE
 
 
-log = logging.getLogger("lightning_boilerplates.vae")
+log = logging.getLogger("lightning_experiment")
 Tensor = TypeVar("torch.tensor")
 
 
@@ -90,8 +90,8 @@ class VAEExperiment(LightningModule):
         self.__sample_images()
         return {"val_loss": avg_loss, "log": tensorboard_logs}
 
-    def on_epoch_end(self):
-        self.__log_embeddings()
+    # def on_epoch_end(self):
+    #     self.__log_embeddings()
 
     def configure_optimizers(self):
 
@@ -103,6 +103,7 @@ class VAEExperiment(LightningModule):
             lr=self.hparams.lr,
             weight_decay=self.hparams.weight_decay,
             betas=self.hparams.betas,
+            amsgrad=True,
         )
         optims.append(optimizer)
         # Check if more than 1 optimizer is required (Used for adversarial training)
@@ -128,6 +129,17 @@ class VAEExperiment(LightningModule):
 
         return optims
 
+    def optimizer_step(
+        self, current_epoch, batch_idx, optimizer, optimizer_idx, second_order_closure=None
+    ):
+        gradplot_savepath = H.makedirs(
+            os.path.join(self.metaconf["ws_path"], "artifacts", "gradflow_plots")
+        )
+        fig = H.plot_grad_flow(self.named_parameters(), "VAE", self.global_step, gradplot_savepath)
+        self.logger.experiment.add_figure("gradflow_plots", fig, self.global_step)
+        optimizer.step()
+        optimizer.zero_grad()
+
     def prepare_data(self):
         """Prepare and save dataset as TensorDataset to improve training speed.
         """
@@ -135,6 +147,7 @@ class VAEExperiment(LightningModule):
         log.info(f"DATASET SIZE: {len(self.generic_dataset)}")
 
         self.tensor_dataset_path = self.__prepare_tensor_dataset()
+
         self.aug_transform = transforms.Compose([T.FlipNodule3D(), T.RotNodule3D()])
         self.dataset = DatasetFolder(
             self.tensor_dataset_path, torch.load, ("pt"), transform=self.__data_transform
@@ -142,7 +155,7 @@ class VAEExperiment(LightningModule):
         self.dataset.norm = self.generic_dataset.norm
 
         train_inds, val_inds, test_inds = H.train_val_holdout_split(
-            self.dataset, ratios=[0.89, 0.1, 0.01]
+            self.dataset, ratios=[0.85, 0.14, 0.01]
         )
         self.train_sampler = SubsetRandomSampler(train_inds)
         self.val_sampler = SubsetRandomSampler(val_inds)
@@ -222,15 +235,21 @@ class VAEExperiment(LightningModule):
         test_input, test_label = test_input.to(self.curr_device), test_label.to(self.curr_device)
 
         recons = self.model.generate(test_input, labels=test_label)
+        test_grid = self.__make_grid(test_input)
         grid = self.__make_grid(recons)
+        self.logger.experiment.add_image(f"to_reconsruct", test_grid, self.global_step)
         self.logger.experiment.add_image(f"reconstructed", grid, self.global_step)
+        del recons
 
-        if "sample" in dir(self.model):
+        try:
             samples = self.model.sample(test_input.size(0), self.curr_device, labels=test_label)
             grid = self.__make_grid(samples)
             self.logger.experiment.add_image(f"sampled", grid, self.global_step)
             del samples
-        del test_input, recons, grid
+        except (Warning, NotImplementedError) as e:
+            log.warning(e)
+
+        del test_input, grid
 
     def __log_embeddings(self):
         dataset = DatasetFolder(self.tensor_dataset_path, torch.load, ("pt"))

@@ -11,11 +11,13 @@
 from .base import BaseVAE, Tensor
 from .vanilla_vae import VanillaVAE
 from .cvae import ConditionalVAE
+from .vqvae import VQVAE
 
 
 vae_models = {
     "VanillaVAE": VanillaVAE,
-    "ConditionalVAE": ConditionalVAE
+    "ConditionalVAE": ConditionalVAE,
+    "VQVAE": VQVAE
 }
 
 

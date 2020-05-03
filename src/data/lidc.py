@@ -6,6 +6,7 @@ from typing import List, Tuple
 import numpy as np
 import pickle
 import pylidc
+import raster_geometry as geom
 from pylidc.utils import consensus
 from scipy.stats import mode
 from scipy.ndimage.morphology import binary_dilation
@@ -128,7 +129,7 @@ class LIDCNodulesDataset(Dataset):
 
     def __getitem__(self, i):
         nodule = self.nodule_list[i]
-        nodule_vol, nodule_mask = self.load_nodule_vol(nodule)
+        nodule_vol = self.load_nodule_vol(nodule)
         nodule_vol = self.norm(np.clip(nodule_vol, *self.clip_range))
 
         sample = {  # permuted to [C, D, H, W]
@@ -139,13 +140,7 @@ class LIDCNodulesDataset(Dataset):
         return sample
 
     def load_nodule_vol(self, nodule: LIDCNodule):
-        bb = nodule.bbox
         volume = nodule.pylidc_scan.to_volume(verbose=False)
-
-        mask_vol = np.zeros(volume.shape)
-        mask_vol[bb[0].start : bb[0].stop, bb[1].start : bb[1].stop, bb[2].start : bb[2].stop][
-            nodule.mask
-        ] = 1
 
         nodule_vol = extract_cube(
             series_volume=volume,
@@ -154,14 +149,10 @@ class LIDCNodulesDataset(Dataset):
             cube_voxelsize=self.cube_voxelsize,
             extract_size_mm=self.extract_size_mm,
         )
-        nodule_levelset_vol = extract_cube(
-            series_volume=mask_vol,
-            spacing=nodule.pylidc_scan.spacings,
-            nodule_coords=nodule.centroid,
-            cube_voxelsize=self.cube_voxelsize,
-            extract_size_mm=self.extract_size_mm,
-        )
-        return nodule_vol, nodule_levelset_vol
+        sphere_mask = geom.sphere(nodule_vol.shape, nodule_vol.shape[0] // 4)
+        if self.masked:
+            nodule_vol[~sphere_mask] = -2048
+        return nodule_vol
 
     def __prepare_nodules_annotations(self):
         """Search through pylidc database for annotations, make clusters
