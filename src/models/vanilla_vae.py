@@ -122,9 +122,11 @@ class VanillaVAE(BaseVAE):
         eps = torch.randn_like(std)
         return eps * std + mu
 
-    def forward(self, input: Tensor, **kwargs) -> List[Tensor]:
+    def forward(self, input: Tensor, return_embed: bool = False, **kwargs) -> List[Tensor]:
         mu, log_var = self.encode(input)
         z = self.reparameterize(mu, log_var)
+        if return_embed:
+            return z
         return [self.decode(z), input, mu, log_var]
 
     def loss_function(self, *args, **kwargs) -> dict:
@@ -172,6 +174,4 @@ class VanillaVAE(BaseVAE):
         return self.forward(x)[0]
 
     def embed(self, input: Tensor, **kwargs) -> List[Tensor]:
-        mu, log_var = self.encode(input)
-        z = self.reparameterize(mu, log_var)
-        return z
+        return self.forward(input, return_embed=True)

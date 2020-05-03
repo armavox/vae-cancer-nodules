@@ -127,7 +127,7 @@ class ConditionalVAE(BaseVAE):
         eps = torch.randn_like(std)
         return eps * std + mu
 
-    def forward(self, input: Tensor, **kwargs) -> List[Tensor]:
+    def forward(self, input: Tensor, return_embed: bool = False, **kwargs) -> List[Tensor]:
         if kwargs["labels"].dim() == 1:
             y = F.one_hot(kwargs["labels"] - 1, num_classes=self.num_classes).float()
         else:
@@ -140,6 +140,9 @@ class ConditionalVAE(BaseVAE):
         mu, log_var = self.encode(x)
 
         z = self.reparameterize(mu, log_var)
+
+        if return_embed:
+            return z
 
         z = torch.cat([z, y], dim=1)
         return [self.decode(z), input, mu, log_var]
@@ -189,16 +192,4 @@ class ConditionalVAE(BaseVAE):
         return self.forward(x, **kwargs)[0]
 
     def embed(self, input: Tensor, **kwargs) -> List[Tensor]:
-        if kwargs["labels"].dim() == 1:
-            y = F.one_hot(kwargs["labels"] - 1, num_classes=self.num_classes).float()
-        else:
-            y = kwargs["labels"].float()
-        embedded_class = self.embed_class(y)
-        embedded_class = embedded_class.view(-1, self.img_size, self.img_size).unsqueeze(1)
-        embedded_input = self.embed_data(input)
-
-        x = torch.cat([embedded_input, embedded_class], dim=1)
-        mu, log_var = self.encode(x)
-
-        z = self.reparameterize(mu, log_var)
-        return z
+        return self.forward(input, return_embed=True, **kwargs)
