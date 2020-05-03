@@ -134,7 +134,7 @@ class LIDCNodulesDataset(Dataset):
         sample = {  # permuted to [C, D, H, W]
             "lidc_nodule": nodule,
             "nodule": torch.from_numpy(nodule_vol).type(torch.float).unsqueeze(0).permute(0, 3, 1, 2),
-            "texture": nodule.texture,
+            "texture": torch.tensor(nodule.texture, dtype=torch.long),
         }
         return sample
 

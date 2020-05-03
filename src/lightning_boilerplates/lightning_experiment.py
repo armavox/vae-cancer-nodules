@@ -2,6 +2,7 @@ import logging
 import os
 from argparse import Namespace
 
+import matplotlib.pyplot as plt
 from tqdm import tqdm
 from typing import TypeVar
 
@@ -133,6 +134,9 @@ class VAEExperiment(LightningModule):
         log.info(f"DATASET SIZE: {len(self.generic_dataset)}")
 
         self.tensor_dataset_path = self.__prepare_tensor_dataset()
+        self.aug_transform = transforms.Compose(
+            [T.FlipNodule3D(), T.RotNodule3D()]
+        )
         self.dataset = DatasetFolder(
             self.tensor_dataset_path, torch.load, ("pt"), transform=self.__data_transform
         )
@@ -186,14 +190,17 @@ class VAEExperiment(LightningModule):
 
     def __data_transform(self, input):
         image, label = input["nodule"], input["texture"]
-        image = image[:, image.size(2) // 2, :, :]
-        transform = transforms.Compose(
-            [
-                transforms.RandomChoice([T.Rot90(), T.Flip()]),
-                transforms.RandomErasing(value=-1.0, ratio=(0.3, 1.2)),
-            ]
-        )
-        return {"nodule": transform(image), "texture": label}
+        if label != 5:
+            plt.imshow(image[0, 32])
+            plt.savefig('123.png')
+            plt.close()
+            image = self.aug_transform(image)
+            plt.imshow(image[0, 32])
+            plt.savefig('1234.png')
+            plt.close()
+
+        image = image[:, image.size(1) // 2, :, :]
+        return {"nodule": image, "texture": label}
 
     def __make_grid(self, samples):
         imgs_in_hu = self.dataset.norm.denorm(samples)
