@@ -16,3 +16,4 @@ dependencies:
     - pylidc==0.2.2
     - pytorch-lightning==0.7.3
     - raster-geometry==0.1.4.1
+    - torch-summary==1.1.7
