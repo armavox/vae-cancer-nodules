@@ -56,14 +56,26 @@ def extract_cube(
         xyz[2] - halfcube_voxelsize[2] : xyz[2] + halfcube_voxelsize[2],
     ]
 
-    # After resampling spacing becomes 1mm / 1 px
-    nodulecube = ndimage.zoom(nodulecube, spacing, order=5, prefilter=False)
-    sh = nodulecube.shape
+    # After resampling spacing becomes 1mm / 1 px. Now fine-tune resample up to cube_voxelsize
+    to_spacing = spacing * (cube_voxelsize / np.round(nodulecube.shape * spacing).astype("int"))
     resampled_cube = ndimage.zoom(
         nodulecube,
-        (cube_voxelsize / sh[0], cube_voxelsize / sh[1], cube_voxelsize / sh[2]),
+        to_spacing,  # (cube_voxelsize / sh[0], cube_voxelsize / sh[1], cube_voxelsize / sh[2]),
         order=5,
         prefilter=False,
     )
+    # fig, ax = plt.subplots(1, 3, figsize=(8, 12))
+    # [axi.set_axis_off() for axi in ax.ravel()]
+    # gs = plt.GridSpec(4, 3, figure=fig)
 
+    # ax0 = fig.add_subplot(gs[0, 0])
+    # ax1 = fig.add_subplot(gs[0, 1])
+    # ax2 = fig.add_subplot(gs[0, 2])
+    # ax3 = fig.add_subplot(gs[1:, 0:])
+
+    # # ax0.imshow(nodulecube_orig[:, :, nodulecube_orig.shape[2]//2], cmap="gray")
+    # ax1.imshow(nodulecube[:, nodulecube.shape[1]//2, :], cmap="gray")
+    # ax2.imshow(resampled_cube[:, resampled_cube.shape[1]//2, :], cmap="gray")
+    # ax3.imshow(series_volume[:, :, int(nodule_coords[2])], cmap="gray")
+    # plt.savefig('abc2.png')
     return resampled_cube

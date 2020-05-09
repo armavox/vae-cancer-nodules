@@ -271,44 +271,68 @@ if __name__ == "__main__":
     # from torch.utils.data import DataLoader
     import matplotlib.pyplot as plt
     from mpl_toolkits.axes_grid1 import make_axes_locatable
-    ws_path = "/home/artem.lobantsev/ssd/rls-med-ws/tensorboard_logs2"
-    writer = SummaryWriter(os.path.join(ws_path, "lidc-log0"))
 
-    norm = Normalization(from_min=-1.0, from_max=1.0, to_min=0, to_max=255)
-    norm2 = Normalization(from_min=-1000, from_max=600, to_min=0, to_max=1)
+    ws_path = "/home/artem.lobantsev/ssd/ctln-gan-ws/ds_tensorboard_logs"
+    writer = SummaryWriter(os.path.join(ws_path, "exp_lidc3"))
+
+    norm = Normalization(from_min=-1000, from_max=600, to_min=0, to_max=1)
     for i, sample in tqdm(enumerate(dataset)):
         patient_id = sample["lidc_nodule"].pylidc_scan.patient_id
-        scan = sample["lidc_nodule"].pylidc_scan.to_volume()
+        scan = sample["lidc_nodule"].pylidc_scan.to_volume(verbose=False)
         clip_scan = np.clip(scan, *config["ct_clip_range"])
-        img = dataset.norm.denorm(sample["nodule"][:, :, :, config["cube_voxelsize"] // 2])
-        img_01 = norm2(img)
+        img = dataset.norm.denormalize(sample["nodule"][:, config["cube_voxelsize"] // 2, :, :])
+        img_01 = norm(img)
         # img = norm(sample["nodule"][:, :, :, config["cube_voxelsize"] // 2]).to(torch.uint8)
         # scan = norm2(scan).astype(np.uint8)
 
+        fig, ax = plt.subplots(3, 1, figsize=(5, 11), constrained_layout=True)
+        im_ = ax[0].imshow(img.numpy()[0], cmap="gray")
+        divider = make_axes_locatable(ax[0])
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        fig.colorbar(im_, cax=cax, orientation="vertical")
+        im__ = ax[1].imshow(clip_scan[:, :, int(sample["lidc_nodule"].centroid[2])], cmap="gray")
+        divider = make_axes_locatable(ax[1])
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        fig.colorbar(im__, cax=cax, orientation="vertical")
+        ax[2].axis("tight")
+        ax[2].axis("off")
+        ax[2].table(
+            cellText=[
+                ["diameter", f'{sample["lidc_nodule"].diameter:.2f}'],
+                ["texture", sample["lidc_nodule"].texture],
+            ],
+            bbox=[0.3, 0.8, 0.4, 0.2],
+        )
+
+        [axis.set_axis_off() for axis in ax.ravel()]
+        plt.savefig(f"../../png_dataset/patient_{patient_id}_nodule_{i}.png", dpi=300)
+        writer.add_figure("sample_fig2", fig, i)
+        plt.close()
+
         fig, ax = plt.subplots(2, 2, figsize=(8, 8))
         im0 = ax[0, 0].imshow(img.numpy()[0], cmap="gray")
-        ax[0, 0].axis('off')
+        ax[0, 0].axis("off")
         divider = make_axes_locatable(ax[0, 0])
-        cax = divider.append_axes('right', size='5%', pad=0.05)
-        fig.colorbar(im0, cax=cax, orientation='vertical')
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        fig.colorbar(im0, cax=cax, orientation="vertical")
 
-        im1 = ax[0, 1].imshow(clip_scan[:, :, clip_scan.shape[2] // 2], cmap="gray")
-        ax[0, 1].axis('off')
+        im1 = ax[0, 1].imshow(clip_scan[:, :, int(sample["lidc_nodule"].centroid[2])], cmap="gray")
+        ax[0, 1].axis("off")
         divider = make_axes_locatable(ax[0, 1])
-        cax = divider.append_axes('right', size='5%', pad=0.05)
-        fig.colorbar(im1, cax=cax, orientation='vertical')
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        fig.colorbar(im1, cax=cax, orientation="vertical")
 
         im2 = ax[1, 0].imshow(img_01.numpy()[0], cmap="gray")
-        ax[1, 0].axis('off')
+        ax[1, 0].axis("off")
         divider = make_axes_locatable(ax[1, 0])
-        cax = divider.append_axes('right', size='5%', pad=0.05)
-        fig.colorbar(im2, cax=cax, orientation='vertical')
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        fig.colorbar(im2, cax=cax, orientation="vertical")
 
         im3 = ax[1, 1].imshow(scan[:, :, scan.shape[2] // 2], cmap="gray")
-        ax[1, 1].axis('off')
+        ax[1, 1].axis("off")
         divider = make_axes_locatable(ax[1, 1])
-        cax = divider.append_axes('right', size='5%', pad=0.05)
-        fig.colorbar(im3, cax=cax, orientation='vertical')
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        fig.colorbar(im3, cax=cax, orientation="vertical")
 
         fig.suptitle(patient_id)
         fig.tight_layout()
